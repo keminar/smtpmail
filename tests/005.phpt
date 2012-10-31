@@ -15,6 +15,7 @@ $smtpmail->login($smtp_user, $smtp_pass);
 $smtpmail->from("", "");
 $smtpmail->to($smtp_to, $smtp_to_name);
 echo (int)$smtpmail->send($smtp_subject, $smtp_body);
+$smtpmail->close();
 ?>
 --EXPECT--
 0

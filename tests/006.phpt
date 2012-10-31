@@ -15,9 +15,10 @@ $smtpmail->login($smtp_user, $smtp_pass);
 $smtpmail->from($smtp_from, $smtp_from_name);
 $smtpmail->to($smtp_to, $smtp_to_name);
 $smtpmail->cc($smtp_cc, $smtp_cc_name);
-$smtpmail->bcc($smtp_bcc, $smtp_bcc_name);
+$smtpmail->bcc("", "");
 $smtpmail->attachment("", "");
 echo (int)$smtpmail->send($smtp_subject, $smtp_body);
+$smtpmail->close();
 ?>
 --EXPECT--
 1

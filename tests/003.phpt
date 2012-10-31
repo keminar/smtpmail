@@ -6,6 +6,7 @@ Check for smtpmail ssl connect
 <?php
 $smtpmail = new SmtpMail("smtp.gmail.com", 465);
 var_dump($smtpmail);
+$smtpmail->close();
 ?>
 --EXPECT--
 object(SmtpMail)#1 (1) {

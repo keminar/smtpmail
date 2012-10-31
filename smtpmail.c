@@ -254,6 +254,7 @@ void php_smtpmail_attachments(php_smtpmail_object *smtpmail_obj)/*{{{*/
 		//file not exists
 		if (mail_attachment == NULL) {
 			/* enter to next loop */
+            php_error_docref(NULL TSRMLS_CC, E_WARNING, "file %s not exists", string_key);
 			zend_hash_move_forward_ex(smtpmail_obj->attachments, &pos);
 			continue;
 		}
@@ -261,7 +262,6 @@ void php_smtpmail_attachments(php_smtpmail_object *smtpmail_obj)/*{{{*/
 		send_length = spprintf(&headers, 0,  "\r\n--#BOUNDARY#\r\nContent-Type: application/octet-stream;charset=\"%s\"; name=%s\r\nContent-Disposition: attachment; filename=%s\r\nContent-Transfer-Encoding: base64\r\n\r\n",
 				smtpmail_obj->charset, string_value, string_value);
 		php_stream_write(smtpmail_obj->stream, headers, send_length);
-		efree(headers);
 
 		tmp_attachment = php_smtpmail_chunk_split(mail_attachment);
 		efree(mail_attachment);
@@ -273,6 +273,7 @@ void php_smtpmail_attachments(php_smtpmail_object *smtpmail_obj)/*{{{*/
 		if (smtpmail_obj->debug) {
 			php_printf("%s%s",  headers, mail_attachment);
 		}
+		efree(headers);
 		efree(mail_attachment);
 
 		/* enter to next loop */
@@ -657,6 +658,11 @@ static PHP_METHOD(SmtpMail, to)
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|s", &to, &to_len, &name, &name_len) == FAILURE) {
         RETURN_FALSE;
     }
+
+    if (to_len <= 0) {
+        RETURN_FALSE;
+    }
+
     smtpmail_obj = (php_smtpmail_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
 	
 	base64_str =  (char *) php_base64_encode((unsigned char*)name, name_len, &base64_length);
@@ -686,6 +692,11 @@ static PHP_METHOD(SmtpMail, cc)
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|s", &cc, &cc_len, &name, &name_len) == FAILURE) {
         RETURN_FALSE;
     }
+
+    if (cc_len <= 0) {
+        RETURN_FALSE;
+    }
+
     smtpmail_obj = (php_smtpmail_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
 
 	base64_str =  (char *) php_base64_encode((unsigned char*)name, name_len, &base64_length);
@@ -714,6 +725,11 @@ static PHP_METHOD(SmtpMail, bcc)
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|s", &bcc, &bcc_len, &name, &name_len) == FAILURE) {
         RETURN_FALSE;
     }
+ 
+    if (bcc_len <= 0) {
+        RETURN_FALSE;
+    }
+
     smtpmail_obj = (php_smtpmail_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
 	
 	base64_str =  (char *) php_base64_encode((unsigned char*)name, name_len, &base64_length);
@@ -741,6 +757,15 @@ static PHP_METHOD(SmtpMail, attachment)
 
     if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &file, &file_len, &file_name, &file_name_len) == FAILURE) {
         RETURN_FALSE;
+    }
+ 
+    if (file_len <= 0) {
+        RETURN_FALSE;
+    }
+
+    if (file_name_len <= 0) {
+        file_name = file;
+        file_name_len = file_len;
     }
 
     smtpmail_obj = (php_smtpmail_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
@@ -774,7 +799,7 @@ static PHP_METHOD(SmtpMail, send)
     }
 
     smtpmail_obj = (php_smtpmail_object *)zend_object_store_get_object(getThis() TSRMLS_CC);
-    
+   
     if (smtpmail_obj->stream == NULL) {
         php_error_docref(NULL TSRMLS_CC, E_WARNING, "The connection has been losted");
         RETURN_FALSE;

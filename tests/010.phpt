@@ -1,5 +1,5 @@
 --TEST--
-Check for smtpmail empty user login 
+Check for smtpmail empty attachment name
 --SKIPIF--
 <?php 
 require "config.inc";
@@ -11,9 +11,14 @@ if ($smtp_from == "" || $smtp_to == "") print "skip";
 error_reporting(E_ALL ^ E_NOTICE ^ E_WARNING);
 include "config.inc";
 $smtpmail = new SmtpMail($smtp_host, $smtp_port, $smtp_timeout, $smtp_charset, $smtp_delimiter, 0);
-$smtpmail->login("", "");
-echo (int)$smtpmail->from($smtp_from, $smtp_from_name);
+$smtpmail->login($smtp_user, $smtp_pass);
+$smtpmail->from($smtp_from, $smtp_from_name);
+$smtpmail->to($smtp_to, $smtp_to_name);
+$smtpmail->cc($smtp_cc, $smtp_cc_name);
+$smtpmail->bcc($smtp_bcc, $smtp_bcc_name);
+$smtpmail->attachment($smtp_attachment, "");
+echo (int)$smtpmail->send($smtp_subject, $smtp_body);
 $smtpmail->close();
 ?>
 --EXPECT--
-0
+1

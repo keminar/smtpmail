@@ -6,6 +6,7 @@ Check for smtpmail connect
 <?php
 $smtpmail = new SmtpMail("smtp.qq.com", 25);
 var_dump($smtpmail);
+$smtpmail->close();
 ?>
 --EXPECT--
 object(SmtpMail)#1 (1) {
