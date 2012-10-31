@@ -1,0 +1,13 @@
+// $Id$
+// vim:ft=javascript
+
+// If your extension references something external, use ARG_WITH
+// ARG_WITH("smtpmail", "for smtpmail support", "no");
+
+// Otherwise, use ARG_ENABLE
+// ARG_ENABLE("smtpmail", "enable smtpmail support", "no");
+
+if (PHP_SMTPMAIL != "no") {
+	EXTENSION("smtpmail", "smtpmail.c");
+}
+
