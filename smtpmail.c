@@ -40,18 +40,16 @@ static zend_class_entry *smtpmail_ce;
 
 static zend_object_handlers php_smtpmail_handlers;
 
-/* {{{ php_smtpmail_error_log */
-void php_smtpmail_error_log(php_smtpmail_object *smtpmail_obj, char *rep, char *err)
+void php_smtpmail_error_log(php_smtpmail_object *smtpmail_obj, char *rep, char *err)/*{{{*/
 {
 	if (smtpmail_obj->errlog) {
 		efree(smtpmail_obj->errlog);
 	}
 	spprintf(&(smtpmail_obj->errlog),0,rep, err);
 }
-/* }}} */
+/*}}}*/
 
-/* {{{ 当前时间 php_smtpmail_time*/
-char *php_smtpmail_time()
+char *php_smtpmail_time()/*{{{*/
 {
     struct tm *ptr;
     time_t lt;
@@ -61,10 +59,9 @@ char *php_smtpmail_time()
     strftime(str,100,"%c %z",ptr);
     return str;
 }
-/* }}} */
+/*}}}*/
 
-/* {{{ 消息id php_smtpmail_messageid*/
-char *php_smtpmail_messageid()
+char *php_smtpmail_messageid()/*{{{*/
 {
     struct timeval tp = {0};
     static char ret[100];
@@ -73,7 +70,7 @@ char *php_smtpmail_messageid()
 	struct tm *ptr;
     time_t lt;
     static char str[200];
-   
+	
 	lt=time(NULL);
 	ptr=localtime(&lt);
 	strftime(str,100,"%Y%m%d%H%M%S",ptr);
@@ -89,10 +86,9 @@ char *php_smtpmail_messageid()
     snprintf(ret, 100, "%s.%ld%ld", str,tp.tv_usec,abs(num));
     return ret;
 }
-/* }}} */
+/*}}}*/
 
-/* {{{ 按指定大小分块 php_chunk_split*/
-static char *php_chunk_split(char *src, int srclen, char *end, int endlen, int chunklen, int *destlen)
+static char *php_chunk_split(char *src, int srclen, char *end, int endlen, int chunklen, int *destlen)/*{{{*/
 {
 	char *dest;
 	char *p, *q;
@@ -139,11 +135,9 @@ static char *php_chunk_split(char *src, int srclen, char *end, int endlen, int c
 	}
 
 	return(dest);
-}
-/* }}} */
+}/*}}}*/
 
-/* {{{ 按邮件协议长度分块 php_smtpmail_chunk_split */
-char *php_smtpmail_chunk_split(char *str)
+char *php_smtpmail_chunk_split(char *str)/*{{{*/
 {
     char *result;
     char *end    = "\r\n";
@@ -167,11 +161,9 @@ char *php_smtpmail_chunk_split(char *str)
     } else {
         return;
     }
-}
-/* }}} */
+}/*}}}*/
 
-/* {{{ 从文件中读取内容*/
-char *php_smtpmail_readfile(char *filename)
+char *php_smtpmail_readfile(char *filename)/*{{{*/
 {
     char *contents;
     php_stream *stream;
@@ -205,11 +197,9 @@ char *php_smtpmail_readfile(char *filename)
     } else {
         return;
     }
-}
-/* }}} */
+}/*}}}*/
 
-/* {{{ 设置收信人 void php_smtpmail_rcpt_write */
-void php_smtpmail_rcpt_write(php_smtpmail_object *smtpmail_obj)
+void php_smtpmail_rcpt_write(php_smtpmail_object *smtpmail_obj)/*{{{*/
 {
 	char *string_value = NULL;
 	HashPosition pos;
@@ -219,9 +209,13 @@ void php_smtpmail_rcpt_write(php_smtpmail_object *smtpmail_obj)
 
 	zend_hash_internal_pointer_reset_ex(smtpmail_obj->rcpt, &pos);
 	while (zend_hash_get_current_data_ex(smtpmail_obj->rcpt, (void **)&string_value, &pos) == SUCCESS) {
-		//收信人
+		/* mail to */
 		send_length = spprintf(&mail_to, 0 , "RCPT TO: <%s>\r\n", string_value);
 		php_stream_write(smtpmail_obj->stream, mail_to, send_length);
+		if (smtpmail_obj->debug) {
+			php_printf(mail_to);
+		}
+
 		php_stream_get_line(smtpmail_obj->stream, smtpmail_obj->lastmessage, lastmessage_len, &line_len);
 		if (strncmp(smtpmail_obj->lastmessage, "250", 3)!=0) {
 			php_smtpmail_error_log(smtpmail_obj,"esmtp server rcpt to is error:%s",smtpmail_obj->lastmessage);
@@ -230,19 +224,17 @@ void php_smtpmail_rcpt_write(php_smtpmail_object *smtpmail_obj)
 		}
 		efree(mail_to);
 		
-		//进入下一个循环
+		/* enter to next loop */
 		zend_hash_move_forward_ex(smtpmail_obj->rcpt, &pos);
 	}
 	
-	//清除
+	/* clear */
 	zend_hash_destroy(smtpmail_obj->rcpt);
 	zend_hash_init(smtpmail_obj->rcpt, 0, NULL, NULL, 0);
 
-}
-/* }}} */
+}/*}}}*/
 
-/* {{{ 设置收信人 void php_smtpmail_attachments */
-void php_smtpmail_attachments(php_smtpmail_object *smtpmail_obj, zend_bool show_log)
+void php_smtpmail_attachments(php_smtpmail_object *smtpmail_obj)/*{{{*/
 {
 	char *string_value = NULL;
 	HashPosition pos;
@@ -257,39 +249,41 @@ void php_smtpmail_attachments(php_smtpmail_object *smtpmail_obj, zend_bool show_
 	zend_hash_internal_pointer_reset_ex(smtpmail_obj->attachments, &pos);
 	while (zend_hash_get_current_data_ex(smtpmail_obj->attachments, (void **)&string_value, &pos) == SUCCESS) {
 		zend_hash_get_current_key_ex(smtpmail_obj->attachments, &string_key, &str_key_len, &num_key, 0, &pos);
+	
+		mail_attachment = php_smtpmail_readfile(string_key);
+		//file not exists
+		if (mail_attachment == NULL) {
+			/* enter to next loop */
+			zend_hash_move_forward_ex(smtpmail_obj->attachments, &pos);
+			continue;
+		}
 
 		send_length = spprintf(&headers, 0,  "\r\n--#BOUNDARY#\r\nContent-Type: application/octet-stream;charset=\"%s\"; name=%s\r\nContent-Disposition: attachment; filename=%s\r\nContent-Transfer-Encoding: base64\r\n\r\n",
 				smtpmail_obj->charset, string_value, string_value);
 		php_stream_write(smtpmail_obj->stream, headers, send_length);
-		
-		mail_attachment = php_smtpmail_readfile(string_key);
 		efree(headers);
 
 		tmp_attachment = php_smtpmail_chunk_split(mail_attachment);
 		efree(mail_attachment);
-		
+
 		send_length = spprintf(&mail_attachment, 0, "%s\r\n", tmp_attachment);
-		efree(tmp_attachment);
 
 		php_stream_write(smtpmail_obj->stream, mail_attachment, send_length);
 
-		if (show_log) {
-            php_printf("%s%s",  headers, mail_attachment);
+		if (smtpmail_obj->debug) {
+			php_printf("%s%s",  headers, mail_attachment);
 		}
 		efree(mail_attachment);
 
-		//进入下一个循环
+		/* enter to next loop */
 		zend_hash_move_forward_ex(smtpmail_obj->attachments, &pos);
 	}
 	
-	//清除
+	/* clear */
 	zend_hash_destroy(smtpmail_obj->attachments);
 	zend_hash_init(smtpmail_obj->attachments, 0, NULL, NULL, 0);
-}
-/* }}} */
+}/*}}}*/
 
-
-/* {{{ php_smtpmail_obj_dtor */
 static void php_smtpmail_obj_dtor(void *object TSRMLS_DC) /* {{{ */
 {
     php_smtpmail_object *smtpmail_obj = (php_smtpmail_object *)object;
@@ -302,8 +296,15 @@ static void php_smtpmail_obj_dtor(void *object TSRMLS_DC) /* {{{ */
 		php_stream_close(smtpmail_obj->stream);
 		smtpmail_obj->stream = NULL;
 	}
-	efree(smtpmail_obj->delimiter);
-	efree(smtpmail_obj->charset);
+	if (smtpmail_obj->hostname != NULL) {
+		efree(smtpmail_obj->hostname);
+	}
+	if (smtpmail_obj->delimiter != NULL) {
+		efree(smtpmail_obj->delimiter);
+	}
+	if (smtpmail_obj->charset !=NULL) {
+		efree(smtpmail_obj->charset);
+	}
 	if (smtpmail_obj->errlog != NULL) {
 		efree(smtpmail_obj->errlog);
 	}
@@ -328,13 +329,13 @@ static void php_smtpmail_obj_dtor(void *object TSRMLS_DC) /* {{{ */
 }
 /* }}} */
 
-/* {{{ php_smtpmail_new */
 static zend_object_value php_smtpmail_new(zend_class_entry *ce TSRMLS_DC) /* {{{ */
 {
     php_smtpmail_object *smtpmail_obj;
     zend_object_value retval;
 
     smtpmail_obj = ecalloc(1, sizeof(*smtpmail_obj));
+	smtpmail_obj->hostname = NULL;
 	smtpmail_obj->from = NULL;
     smtpmail_obj->from_name = NULL;
     smtpmail_obj->to = NULL;
@@ -343,8 +344,9 @@ static zend_object_value php_smtpmail_new(zend_class_entry *ce TSRMLS_DC) /* {{{
     smtpmail_obj->errlog = NULL;
 	smtpmail_obj->attachments = emalloc(sizeof(HashTable));
 	smtpmail_obj->rcpt = emalloc(sizeof(HashTable));
-		
-	lastmessage_len = 512;
+	smtpmail_obj->debug = 0;
+
+	lastmessage_len = PHP_SMTPMAIL_DEFAULT_MSG_LEN;
 	smtpmail_obj->lastmessage = ecalloc(lastmessage_len+1, sizeof(char));
 	
 	zend_hash_init(smtpmail_obj->attachments, 0, NULL, NULL, 0);
@@ -359,67 +361,48 @@ static zend_object_value php_smtpmail_new(zend_class_entry *ce TSRMLS_DC) /* {{{
 }
 /* }}} */
 
-
-#if PHP_MAJOR_VERSION >= 5 && PHP_MINOR_VERSION >= 4
-static zval *php_smtpmail_read_property(zval *object, zval *member, int type, const zend_literal *key TSRMLS_DC) /* {{{ */
-#else
-static zval *php_smtpmail_read_property(zval *object, zval *member, int type TSRMLS_DC) /* {{{ */
-#endif
-{
-	php_smtpmail_object *c;
-	zval tmp_member;
-	zval *retval;
-	zend_object_handlers *std_hnd;
-
-	c = (php_smtpmail_object *)zend_object_store_get_object(object TSRMLS_CC);
-
-	if (member->type != IS_STRING) {
-		tmp_member = *member;
-		zval_copy_ctor(&tmp_member);
-		convert_to_string(&tmp_member);
-		member = &tmp_member;
-	}
-
-	/* XXX we can either create retval ourselves (for custom properties) or use standard handlers */
-
-	std_hnd = zend_get_std_object_handlers();
-#if PHP_MAJOR_VERSION >= 5 && PHP_MINOR_VERSION >= 4
-	retval = std_hnd->read_property(object, member, type, key TSRMLS_CC);
-#else
-	retval = std_hnd->read_property(object, member, type TSRMLS_CC);
-#endif
-
-	if (member == &tmp_member) {
-		zval_dtor(member);
-	}
-	return retval;
-}
-
 static HashTable *php_smtpmail_get_properties(zval *object TSRMLS_DC) /* {{{ */
 {
 	php_smtpmail_object *c;
-	char *warning;
+	char *msg;
 	zval *tmp;
 
 	c = (php_smtpmail_object *)zend_objects_get_address(object TSRMLS_CC);
-	
-	if (c->errlog != NULL) {
-		warning = c->errlog;
+
+	if (c->hostname != NULL) {
+		msg = c->hostname;
 		MAKE_STD_ZVAL(tmp);
-		ZVAL_STRING(tmp, warning, 1);
+		ZVAL_STRING(tmp, msg, 1);
+		zend_hash_update(c->std.properties, "hostname", sizeof("hostname"), (void *)&tmp, sizeof(zval *), NULL);
+	}
+
+	if (c->from != NULL) {
+		msg = c->from;
+		MAKE_STD_ZVAL(tmp);
+		ZVAL_STRING(tmp, msg, 1);
+		zend_hash_update(c->std.properties, "from", sizeof("from"), (void *)&tmp, sizeof(zval *), NULL);
+	}
+
+	if (c->errlog != NULL) {
+		msg = c->errlog;
+		MAKE_STD_ZVAL(tmp);
+		ZVAL_STRING(tmp, msg, 1);
 		zend_hash_update(c->std.properties, "warning", sizeof("warning"), (void *)&tmp, sizeof(zval *), NULL);
 	}
+
 	return c->std.properties;
 }
+/* }}} */
 
-/* {{{ proto void SmtpMail::__construct() */
+/* {{{ proto bool SmtpMail::__construct(string host[, int port[, int timeout[, string charset[, string delimiter[, bool debug]]]]]) */
 static PHP_METHOD(SmtpMail, __construct)
 {
     php_smtpmail_object *smtpmail_obj;
-    char *host=NULL, *charset="utf-8", *delimiter="\n";
-    int host_len=0, charset_len=5, delimiter_len=1;
+    char *host=NULL, *charset=PHP_SMTPMAIL_DEFAULT_CHARSET, *delimiter=PHP_SMTPMAIL_DEFAULT_DELIMITER;
+    int host_len=0, charset_len=PHP_SMTPMAIL_DEFAULT_CHARSET_LEN, delimiter_len=PHP_SMTPMAIL_DEFAULT_DELIMITER_LEN;
     long port = -1;
-    double timeout = 3;
+    double timeout = PHP_SMTPMAIL_DEFAULT_TIMEOUT;
+	zend_bool debug = 0;
     unsigned long conv;
     struct timeval tv;
     char *hashkey = NULL;
@@ -435,8 +418,8 @@ static PHP_METHOD(SmtpMail, __construct)
         return;
     }
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|ldss", &host, &host_len, &port, &timeout, 
-                &charset, &charset_len, &delimiter, &delimiter_len) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s|ldssb", &host, &host_len, &port, &timeout, 
+                &charset, &charset_len, &delimiter, &delimiter_len, &debug) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -455,6 +438,7 @@ static PHP_METHOD(SmtpMail, __construct)
     stream = php_stream_xport_create(hostname, hostname_len, REPORT_ERRORS,
             STREAM_XPORT_CLIENT | STREAM_XPORT_CONNECT, hashkey, &tv, NULL, &errstr, &err);
 
+	spprintf(&(smtpmail_obj->hostname), 0, "%s", hostname);
     if (port > 0) {
         efree(hostname);
     }
@@ -474,7 +458,7 @@ static PHP_METHOD(SmtpMail, __construct)
 		RETURN_FALSE;
 	}
     
-    //设置堵塞
+	/* set block*/
     if (php_stream_set_option(stream, PHP_STREAM_OPTION_BLOCKING, 1, NULL) == -1) {
         php_error_docref(NULL TSRMLS_CC, E_WARNING, "set stream blocking faild");
         RETURN_FALSE;
@@ -483,12 +467,13 @@ static PHP_METHOD(SmtpMail, __construct)
     smtpmail_obj->stream = stream;
 	spprintf(&(smtpmail_obj->delimiter), 0, "%s", delimiter);
 	spprintf(&(smtpmail_obj->charset), 0, "%s", charset);
+	smtpmail_obj->debug = debug;
 
     RETURN_TRUE;
 }
 /* }}} */
 
-/* {{{ proto void SmtpMail::login */
+/* {{{ proto bool SmtpMail::login([string user[, string pass]]) */
 static PHP_METHOD(SmtpMail, login)
 {
     php_smtpmail_object *smtpmail_obj;
@@ -517,6 +502,9 @@ static PHP_METHOD(SmtpMail, login)
     }
 
     php_stream_write(smtpmail_obj->stream, user ? "EHLO smtpmail\r\n" : "HELO smtpmail\r\n", 15);
+	if (smtpmail_obj->debug) {
+		php_printf(user ? "EHLO smtpmail\r\n" : "HELO smtpmail\r\n");
+	}
 
 	php_stream_get_line(smtpmail_obj->stream, smtpmail_obj->lastmessage, lastmessage_len, &line_len);
     if (strncmp(smtpmail_obj->lastmessage, "220", 3)!=0 && strncmp(smtpmail_obj->lastmessage,"250", 3)!=0) {
@@ -531,32 +519,46 @@ static PHP_METHOD(SmtpMail, login)
 		php_stream_get_line(smtpmail_obj->stream, smtpmail_obj->lastmessage, lastmessage_len, &line_len);
     }
 
-    //登录
+    /*login*/
     if (user_len>0 && pass_len>0) {
         php_stream_write(smtpmail_obj->stream, "AUTH LOGIN\r\n",12);
+		if (smtpmail_obj->debug) {
+			php_printf("AUTH LOGIN\r\n");
+		}
+
 		php_stream_get_line(smtpmail_obj->stream, smtpmail_obj->lastmessage, lastmessage_len, &line_len);
         if (strncmp(smtpmail_obj->lastmessage, "334", 3)!=0) {
 			php_smtpmail_error_log(smtpmail_obj,"esmtp server start auth error:%s",smtpmail_obj->lastmessage);
             RETURN_FALSE;
         }
 
+		/* send username*/
 		base64_str = (char *) php_base64_encode((unsigned char*)user, user_len, &ret_length);
         ret_length = spprintf(&ret_result, 0, "%s\r\n",  base64_str);
 		efree(base64_str);
 
         php_stream_write(smtpmail_obj->stream, ret_result, ret_length);
+		if (smtpmail_obj->debug) {
+			php_printf(ret_result);
+		}
+
 		php_stream_get_line(smtpmail_obj->stream, smtpmail_obj->lastmessage, lastmessage_len, &line_len);
         if (strncmp(smtpmail_obj->lastmessage, "334", 3)!=0) {
 			php_smtpmail_error_log(smtpmail_obj,"esmtp server put username error:%s",smtpmail_obj->lastmessage);
 			goto exit_failed;
         }
 		efree(ret_result);
-
+		
+		/* send password*/
 		base64_str = (char *) php_base64_encode((unsigned char*)pass, pass_len, &ret_length);
         ret_length = spprintf(&ret_result, 0, "%s\r\n", base64_str);
 		efree(base64_str);
         
 		php_stream_write(smtpmail_obj->stream, ret_result, ret_length);
+		if (smtpmail_obj->debug) {
+			php_printf(ret_result);
+		}
+
 		php_stream_get_line(smtpmail_obj->stream, smtpmail_obj->lastmessage, lastmessage_len, &line_len);
         if (strncmp(smtpmail_obj->lastmessage, "235", 3)!=0) {
 			php_smtpmail_error_log(smtpmail_obj,"esmtp server password is error:%s",smtpmail_obj->lastmessage);
@@ -573,7 +575,7 @@ exit_failed:
 }
 /* }}}*/
 
-/* {{{ proto void SmtpMail::from */
+/* {{{ proto bool SmtpMail::from(string from[, string name]) */
 static PHP_METHOD(SmtpMail, from)
 {
     php_smtpmail_object *smtpmail_obj;
@@ -593,10 +595,18 @@ static PHP_METHOD(SmtpMail, from)
 		RETURN_FALSE;
 	}
 
-	//发信人
+	if (from_len<=0) {
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "The from cannot be NULL");
+		RETURN_FALSE;
+	}
+
+	/* mail from*/
     send_length = spprintf(&mail_from, 0 , "MAIL FROM: <%s>\r\n", from);
     php_stream_write(smtpmail_obj->stream, mail_from, send_length);
-    
+    if (smtpmail_obj->debug) {
+		php_printf(mail_from);
+	}
+
 	php_stream_get_line(smtpmail_obj->stream, smtpmail_obj->lastmessage, lastmessage_len, &line_len);
 	if (strncmp(smtpmail_obj->lastmessage, "250", 3)!=0) {
 		php_stream_write(smtpmail_obj->stream, mail_from, send_length);
@@ -604,7 +614,7 @@ static PHP_METHOD(SmtpMail, from)
 		if (strncmp(smtpmail_obj->lastmessage, "250", 3)!=0) {
 			php_smtpmail_error_log(smtpmail_obj,"esmtp server mail from is error:%s",smtpmail_obj->lastmessage);
 			php_error_docref(NULL TSRMLS_CC, E_WARNING, smtpmail_obj->errlog);
-			RETURN_FALSE;
+			goto exit_failed;
 		}
     }
 
@@ -616,19 +626,26 @@ static PHP_METHOD(SmtpMail, from)
 	}
 
 	spprintf(&(smtpmail_obj->from), 0, "%s", from);
-    if (strlen(name)==0) {
+    if (name_len==0) {
         spprintf(&(smtpmail_obj->from_name), 0 , "%s", from);
     } else {
-		base64_str = (char *) php_base64_encode((unsigned char*)name, strlen(name), &base64_length);
+		base64_str = (char *) php_base64_encode((unsigned char*)name, name_len, &base64_length);
         spprintf(&(smtpmail_obj->from_name), 0 , "=?%s?B?%s?= <%s>", smtpmail_obj->charset, base64_str, from);
 		efree(base64_str);
     }
 
 	efree(mail_from);
+
+	RETURN_TRUE;
+exit_failed:
+	if (mail_from) {
+		efree(mail_from);
+	}
+	RETURN_FALSE;
 }
 /* }}}*/
 
-/* {{{ proto void SmtpMail::to */
+/* {{{ proto void SmtpMail::to(string to[, string name]) */
 static PHP_METHOD(SmtpMail, to)
 {
     php_smtpmail_object *smtpmail_obj;
@@ -657,7 +674,7 @@ static PHP_METHOD(SmtpMail, to)
 }
 /* }}}*/
 
-/* {{{ proto void SmtpMail::cc */
+/* {{{ proto void SmtpMail::cc(string cc[, string name]) */
 static PHP_METHOD(SmtpMail, cc)
 {
     php_smtpmail_object *smtpmail_obj;
@@ -685,7 +702,7 @@ static PHP_METHOD(SmtpMail, cc)
 }
 /* }}}*/
 
-/* {{{ proto void SmtpMail::bcc */
+/* {{{ proto void SmtpMail::bcc(string bcc[, string name]) */
 static PHP_METHOD(SmtpMail, bcc)
 {
     php_smtpmail_object *smtpmail_obj;
@@ -714,8 +731,7 @@ static PHP_METHOD(SmtpMail, bcc)
 }
 /* }}}*/
 
-
-/* {{{ proto void SmtpMail::attachment */
+/* {{{ proto void SmtpMail::attachment(string file_path, string file_name) */
 static PHP_METHOD(SmtpMail, attachment)
 {
     php_smtpmail_object *smtpmail_obj;
@@ -739,13 +755,12 @@ static PHP_METHOD(SmtpMail, attachment)
 }
 /* }}}*/
 
-/* {{{ proto void SmtpMail::send */
+/* {{{ proto bool SmtpMail::send(string subject, string body) */
 static PHP_METHOD(SmtpMail, send)
 {
     php_smtpmail_object *smtpmail_obj;
     char *subject = NULL, *body = NULL;
     int subject_len=0, body_len=0;
-    zend_bool show_log = 0;
     char *mail_from = NULL, *mail_to=NULL, *mail_cc="",*mail_bcc="", *mail_subject=NULL, *mail_body=NULL, *headers=NULL;
     char *date_str = NULL;
     int send_length = 0,  base64_length=0;
@@ -754,7 +769,7 @@ static PHP_METHOD(SmtpMail, send)
 	char *base64_str = NULL;
 	char *tmp_body=NULL;
 
-    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss|b", &subject, &subject_len, &body, &body_len, &show_log) == FAILURE) {
+    if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "ss", &subject, &subject_len, &body, &body_len) == FAILURE) {
         RETURN_FALSE;
     }
 
@@ -766,16 +781,16 @@ static PHP_METHOD(SmtpMail, send)
     }
 
 	if (smtpmail_obj->from==NULL || strlen(smtpmail_obj->from) == 0) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Please first use from method to set mail from");
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Please first use $smtpmail->from method to set mail from");
 		RETURN_FALSE;
 	}
 
 	if (smtpmail_obj->to==NULL || strlen(smtpmail_obj->to) == 0) {
-		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Please first use to method to set mail to");
+		php_error_docref(NULL TSRMLS_CC, E_WARNING, "Please first use $smtpmail->to method to set mail to");
 		RETURN_FALSE;
 	}
 
-	//rcpt send
+	/*rcpt send*/
 	php_smtpmail_rcpt_write(smtpmail_obj);
 
     php_stream_write(smtpmail_obj->stream, "DATA\r\n",6);
@@ -791,9 +806,8 @@ static PHP_METHOD(SmtpMail, send)
 	send_length = spprintf(&mail_to, 0 , "To: %s\r\n", smtpmail_obj->to);
     php_stream_write(smtpmail_obj->stream, mail_to, send_length);
 
-    if (show_log) {
-        //日志
-        php_printf("%s%s", mail_from, mail_to);
+    if (smtpmail_obj->debug) {
+        php_printf("%s%s%s", "DATA\r\n",mail_from, mail_to);
     }
 	efree(mail_from);
 	efree(mail_to);
@@ -801,7 +815,7 @@ static PHP_METHOD(SmtpMail, send)
     if (smtpmail_obj->cc!=NULL && strlen(smtpmail_obj->cc)>0) {
         send_length = spprintf(&mail_cc, 0 , "Cc: %s\r\n", smtpmail_obj->cc);
         php_stream_write(smtpmail_obj->stream, mail_cc, send_length);
-        if (show_log) {
+        if (smtpmail_obj->debug) {
             php_printf("%s", mail_cc);
         } 
 		efree(mail_cc);
@@ -810,7 +824,7 @@ static PHP_METHOD(SmtpMail, send)
 	if (smtpmail_obj->bcc!=NULL && strlen(smtpmail_obj->bcc)>0) {
         send_length = spprintf(&mail_bcc, 0 , "Bcc: %s\r\n", smtpmail_obj->bcc);
         php_stream_write(smtpmail_obj->stream, mail_bcc, send_length);
-        if (show_log) {
+        if (smtpmail_obj->debug) {
             php_printf("%s", mail_bcc);
         } 
 		efree(mail_bcc);
@@ -832,7 +846,7 @@ static PHP_METHOD(SmtpMail, send)
             );
     php_stream_write(smtpmail_obj->stream, headers,send_length);
     
-    if (show_log) {
+    if (smtpmail_obj->debug) {
         php_printf("%s%s%s", date_str, mail_subject, headers);
     }
 	efree(base64_str);
@@ -840,19 +854,19 @@ static PHP_METHOD(SmtpMail, send)
 	efree(mail_subject);
 	efree(headers);
 
-	//内容头
+	/*headers*/
     send_length = spprintf(&headers, 0 ,"--#BOUNDARY#%sContent-type: text/html; charset=%s%sContent-Transfer-Encoding: base64\r\n\r\n",
              smtpmail_obj->delimiter, smtpmail_obj->charset, smtpmail_obj->delimiter);
     php_stream_write(smtpmail_obj->stream, headers, send_length);
     
-	//RFC 2045电子邮件标准
+	/*RFC 2045*/
     base64_str = (char *) php_base64_encode((unsigned char*)body, body_len, &base64_length);
 	spprintf(&body, 0 , "%s", base64_str);
 	tmp_body = php_smtpmail_chunk_split(body);
 
     send_length = spprintf(&mail_body, 0 , "%s\r\n", tmp_body);
     php_stream_write(smtpmail_obj->stream, mail_body,send_length);
-    if (show_log) {
+    if (smtpmail_obj->debug) {
         php_printf("%s%s", headers, mail_body);
     }
 	efree(base64_str);
@@ -860,14 +874,14 @@ static PHP_METHOD(SmtpMail, send)
 	efree(body);
 	efree(mail_body);
 	
-	//附件
+	/*attachment*/
     if (zend_hash_num_elements(smtpmail_obj->attachments) > 0) {
-		php_smtpmail_attachments(smtpmail_obj, show_log);
+		php_smtpmail_attachments(smtpmail_obj);
     }
 
-	//end #BOUNDARY#
+	/*end #BOUNDARY#*/
 	php_stream_write(smtpmail_obj->stream, "--#BOUNDARY#--\r\n", 16);
-    //send
+    /*send*/
     php_stream_write(smtpmail_obj->stream, ".\r\n", 3);
 
 	php_stream_get_line(smtpmail_obj->stream, smtpmail_obj->lastmessage, lastmessage_len, &line_len);
@@ -876,7 +890,7 @@ static PHP_METHOD(SmtpMail, send)
         RETURN_FALSE;
     }
 
-	//重新初始化
+	/* re init */
 	if (smtpmail_obj->to) {
 		efree(smtpmail_obj->to);
 		smtpmail_obj->to = NULL;
@@ -890,7 +904,7 @@ static PHP_METHOD(SmtpMail, send)
 		smtpmail_obj->bcc = NULL;
 	}
 
-    if (show_log) {
+    if (smtpmail_obj->debug) {
         php_printf("--#BOUNDARY#--\r\n.\r\n");
     }
 
@@ -898,7 +912,7 @@ static PHP_METHOD(SmtpMail, send)
 }
 /* }}}*/
 
-/* {{{ proto void msg SmtpMail::error */
+/* {{{ proto string SmtpMail::error() */
 static PHP_METHOD(SmtpMail, error)
 {
     php_smtpmail_object *smtpmail_obj;
@@ -911,7 +925,7 @@ static PHP_METHOD(SmtpMail, error)
 }
 /* }}}*/
 
-/* {{{ proto void SmtpMail::close */
+/* {{{ proto bool SmtpMail::close() */
 static PHP_METHOD(SmtpMail, close)
 {
     php_smtpmail_object *smtpmail_obj;
@@ -971,11 +985,7 @@ ZEND_BEGIN_ARG_INFO_EX(arginfo_smtpmail_close, 0, 0, 0)
 ZEND_END_ARG_INFO()   
 /* }}} */
 
-/* {{{ smtpmail_functions[]
- *
- * Every user visible function must have an entry in smtpmail_functions[].
- */
-static zend_function_entry smtpmail_methods[] = {
+static zend_function_entry smtpmail_methods[] = {/*{{{*/
     PHP_ME(SmtpMail, __construct,   NULL,                           ZEND_ACC_PUBLIC|ZEND_ACC_CTOR)
     PHP_ME(SmtpMail, login,         arginfo_smtpmail_login,         ZEND_ACC_PUBLIC)
     PHP_ME(SmtpMail, from,          arginfo_smtpmail_from,          ZEND_ACC_PUBLIC)
@@ -987,12 +997,11 @@ static zend_function_entry smtpmail_methods[] = {
     PHP_ME(SmtpMail, error,         arginfo_smtpmail_error,         ZEND_ACC_PUBLIC)
     PHP_ME(SmtpMail, close,         arginfo_smtpmail_close,         ZEND_ACC_PUBLIC)
     {NULL, NULL, NULL}
-};
-/* }}} */
+};/*}}}*/
 
-static zend_function_entry smtpmail_functions[] = {
+static zend_function_entry smtpmail_functions[] = {/*{{{*/
     {NULL, NULL, NULL}
-};
+};/*}}}*/
 
 /* {{{ smtpmail_module_entry
  */
@@ -1004,11 +1013,11 @@ zend_module_entry smtpmail_module_entry = {
 	smtpmail_functions,
 	PHP_MINIT(smtpmail),
 	PHP_MSHUTDOWN(smtpmail),
-	PHP_RINIT(smtpmail),		/* Replace with NULL if there's nothing to do at request start */
-	PHP_RSHUTDOWN(smtpmail),	/* Replace with NULL if there's nothing to do at request end */
+	NULL,		/* Replace with NULL if there's nothing to do at request start */
+	NULL,	/* Replace with NULL if there's nothing to do at request end */
 	PHP_MINFO(smtpmail),
 #if ZEND_MODULE_API_NO >= 20010901
-	"0.1", /* Replace with version number for your extension */
+	PHP_SMTPMAIL_VERSION, /* version number of extension */
 #endif
 	STANDARD_MODULE_PROPERTIES
 };
@@ -1050,7 +1059,6 @@ PHP_MINIT_FUNCTION(smtpmail)
 
     memcpy(&php_smtpmail_handlers, zend_get_std_object_handlers(), sizeof(zend_object_handlers));
 
-//	php_smtpmail_handlers.read_property = php_smtpmail_read_property;
 	php_smtpmail_handlers.get_properties = php_smtpmail_get_properties;
 
     INIT_CLASS_ENTRY(ce, "SmtpMail", smtpmail_methods);
@@ -1073,24 +1081,6 @@ PHP_MSHUTDOWN_FUNCTION(smtpmail)
 }
 /* }}} */
 
-/* Remove if there's nothing to do at request start */
-/* {{{ PHP_RINIT_FUNCTION
- */
-PHP_RINIT_FUNCTION(smtpmail)
-{
-	return SUCCESS;
-}
-/* }}} */
-
-/* Remove if there's nothing to do at request end */
-/* {{{ PHP_RSHUTDOWN_FUNCTION
- */
-PHP_RSHUTDOWN_FUNCTION(smtpmail)
-{
-	return SUCCESS;
-}
-/* }}} */
-
 /* {{{ PHP_MINFO_FUNCTION
  */
 PHP_MINFO_FUNCTION(smtpmail)
@@ -1107,27 +1097,6 @@ PHP_MINFO_FUNCTION(smtpmail)
 /* }}} */
 
 
-/* Remove the following function when you have succesfully modified config.m4
-   so that your module can be compiled into PHP, it exists only for testing
-   purposes. */
-
-/* Every user-visible function in PHP should document itself in the source */
-/* {{{ proto string confirm_smtpmail_compiled(string arg)
-   Return a string to confirm that the module is compiled in */
-/*PHP_FUNCTION(confirm_smtpmail_compiled)
-{
-	char *arg = NULL;
-	int arg_len, len;
-	char *strg;
-
-	if (zend_parse_parameters(ZEND_NUM_ARGS() TSRMLS_CC, "s", &arg, &arg_len) == FAILURE) {
-		return;
-	}
-
-	len = spprintf(&strg, 0, "Congratulations! You have successfully modified ext/%.78s/config.m4. Module %.78s is now compiled into PHP.", "smtpmail", arg);
-	RETURN_STRINGL(strg, len, 0);
-}*/
-/* }}} */
 /* The previous line is meant for vim and emacs, so it can correctly fold and 
    unfold functions in source code. See the corresponding marks just before 
    function definition, where the functions purpose is also documented. Please 

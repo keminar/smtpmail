@@ -42,9 +42,18 @@ PHP_RINIT_FUNCTION(smtpmail);
 PHP_RSHUTDOWN_FUNCTION(smtpmail);
 PHP_MINFO_FUNCTION(smtpmail);
 
-//PHP_FUNCTION(confirm_smtpmail_compiled);	/* For testing, remove later. */
+#define PHP_SMTPMAIL_VERSION "0.3.3"
 
-#define PHP_SMTPMAIL_VERSION "0.3.2"
+#define PHP_SMTPMAIL_DEFAULT_CHARSET "utf-8"
+#define PHP_SMTPMAIL_DEFAULT_CHARSET_LEN 5
+
+#define PHP_SMTPMAIL_DEFAULT_DELIMITER "\n"
+#define PHP_SMTPMAIL_DEFAULT_DELIMITER_LEN 1
+
+#define PHP_SMTPMAIL_DEFAULT_TIMEOUT 3
+
+#define PHP_SMTPMAIL_DEFAULT_MSG_LEN 512
+
 /* 
   	Declare any global variables you may need between the BEGIN
 	and END macros here:     
@@ -83,21 +92,23 @@ ZEND_END_MODULE_GLOBALS(smtpmail)
  * vim<600: noet sw=4 ts=4
  */
 
-typedef struct _php_smtpmail_object {
+typedef struct _php_smtpmail_object {/*{{{*/
 	zend_object std;
 	php_stream *stream;
-	char *from;  //发送邮箱
-	char *from_name;  //发送人
-	HashTable *rcpt;
-	char *to;  //收信邮箱
-	char *cc;  //抄送邮箱
-	char *bcc;  //抄送邮箱
+	char *hostname;  /* smtp server */
+	char *from;  /* mail from */
+	char *from_name;  /* mail from name*/
+	HashTable *rcpt /* who will receive mail*/;
+	char *to;  /* to mail*/
+	char *cc;  /* cc mail*/
+	char *bcc;  /* bcc mail*/
 	HashTable  *attachments;
-	char *delimiter; //分隔符
-	char *charset;  //编码
-	char *errlog;  //日志
-	char *lastmessage;
-} php_smtpmail_object;
+	char *delimiter; 
+	char *charset;  
+	char *errlog;  
+	char *lastmessage; /* buffer */
+	zend_bool debug;
+} php_smtpmail_object;/*}}}*/
 
 
 char *php_smtpmail_time();
@@ -105,5 +116,5 @@ char *php_smtpmail_messageid();
 char *php_smtpmail_chunk_split(char *str);
 char *php_smtpmail_readfile(char *filename);
 void php_smtpmail_rcpt_write(php_smtpmail_object *smtpmail_obj);
-void php_smtpmail_attachments(php_smtpmail_object *smtpmail_obj, zend_bool show_log);
+void php_smtpmail_attachments(php_smtpmail_object *smtpmail_obj);
 
