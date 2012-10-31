@@ -367,31 +367,38 @@ static HashTable *php_smtpmail_get_properties(zval *object TSRMLS_DC) /* {{{ */
 	php_smtpmail_object *c;
 	char *msg;
 	zval *tmp;
+    HashTable *props;
 
 	c = (php_smtpmail_object *)zend_objects_get_address(object TSRMLS_CC);
+
+#if PHP_MAJOR_VERSION >= 5 && PHP_MINOR_VERSION >= 4
+    props = zend_std_get_properties(object TSRMLS_CC);
+#else
+    props = c->std.properties;
+#endif
 
 	if (c->hostname != NULL) {
 		msg = c->hostname;
 		MAKE_STD_ZVAL(tmp);
 		ZVAL_STRING(tmp, msg, 1);
-		zend_hash_update(c->std.properties, "hostname", sizeof("hostname"), (void *)&tmp, sizeof(zval *), NULL);
+		zend_hash_update(props, "hostname", sizeof("hostname"), (void *)&tmp, sizeof(zval *), NULL);
 	}
 
 	if (c->from != NULL) {
 		msg = c->from;
 		MAKE_STD_ZVAL(tmp);
 		ZVAL_STRING(tmp, msg, 1);
-		zend_hash_update(c->std.properties, "from", sizeof("from"), (void *)&tmp, sizeof(zval *), NULL);
+		zend_hash_update(props, "from", sizeof("from"), (void *)&tmp, sizeof(zval *), NULL);
 	}
 
 	if (c->errlog != NULL) {
 		msg = c->errlog;
 		MAKE_STD_ZVAL(tmp);
 		ZVAL_STRING(tmp, msg, 1);
-		zend_hash_update(c->std.properties, "warning", sizeof("warning"), (void *)&tmp, sizeof(zval *), NULL);
+		zend_hash_update(props, "warning", sizeof("warning"), (void *)&tmp, sizeof(zval *), NULL);
 	}
 
-	return c->std.properties;
+	return props;
 }
 /* }}} */
 
