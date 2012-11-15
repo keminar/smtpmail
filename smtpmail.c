@@ -27,7 +27,7 @@
 #include "ext/standard/info.h"
 #include "php_smtpmail.h"
 #include "ext/standard/file.h"
-
+#include "ext/standard/base64.h"
 /* If you declare any globals in php_smtpmail.h uncomment this:
 ZEND_DECLARE_MODULE_GLOBALS(smtpmail)
 */
