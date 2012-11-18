@@ -23,6 +23,14 @@
 #endif
 
 #include "php.h"
+
+#ifdef PHP_WIN32
+# include "win32/winutil.h"
+# include "win32/time.h"
+#else
+#include <sys/time.h>
+#endif
+
 #include "php_ini.h"
 #include "ext/standard/info.h"
 #include "php_smtpmail.h"
@@ -76,7 +84,7 @@ char *php_smtpmail_messageid()/*{{{*/
 	strftime(str,100,"%Y%m%d%H%M%S",ptr);
 
 	if (gettimeofday(&tp, NULL)) {
-        return;
+        return "messageid";
     }
     srand( (unsigned)time( NULL ) ); 
     for(i=0;i<100;i++) 
@@ -151,7 +159,7 @@ char *php_smtpmail_chunk_split(char *str)/*{{{*/
     }
 
     if (!str_len) {
-        return;
+        return str;
     }
 
     result = php_chunk_split(str, str_len, end, endlen, chunklen, &result_len);
@@ -159,7 +167,7 @@ char *php_smtpmail_chunk_split(char *str)/*{{{*/
     if (result) {
         return result;
     } else {
-        return;
+        return str;
     }
 }/*}}}*/
 
@@ -175,7 +183,7 @@ char *php_smtpmail_readfile(char *filename)/*{{{*/
 	int base64_length;
 	char *c = NULL;
 	char *base64_str=NULL;
-    
+  
 	context = php_stream_context_from_zval(zcontext, 0);
 
     stream = php_stream_open_wrapper_ex(filename, "rb",0 | REPORT_ERRORS,
