@@ -272,7 +272,9 @@ void php_smtpmail_attachments(php_smtpmail_object *smtpmail_obj)/*{{{*/
 		php_stream_write(smtpmail_obj->stream, headers, send_length);
 
 		tmp_attachment = php_smtpmail_chunk_split(mail_attachment);
-		efree(mail_attachment);
+		
+		//2012-12-12 value lost
+		//efree(mail_attachment);
 
 		send_length = spprintf(&mail_attachment, 0, "%s\r\n", tmp_attachment);
 
